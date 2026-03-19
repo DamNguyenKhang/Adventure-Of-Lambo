@@ -1,4 +1,4 @@
-﻿using System.Collections;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
@@ -6,200 +6,151 @@ using UnityEngine.SceneManagement;
 
 public class PlayerController : MonoBehaviour
 {
-    public LayerMask playerMask;
-    public GameObject Sword,pos_sword;
-    public bool canMoveInAir = true;
-    // public GameObject gameOverScreen;
-    // public GameManager theGameManager;
+    [Header("Cài đặt di chuyển")]
+    public float speed = 8f;              // Tốc độ di chuyển ngang
+    public float jumpForce = 12f;         // Lực nhảy
+    public float fireRate = 0.5f;          // Thời gian cách giữa 2 lần bắn (giây)
 
+    [Header("Kiểm tra mặt đất")]
+    public Transform feetPos;             // Vị trí đặt dưới chân để kiểm tra đất
+    public float circleRadius = 0.3f;     // Bán kính vùng kiểm tra đất
+    public LayerMask whatIsGround;        // Chọn Layer của các Object làm đất (Ground)
 
-    float fireRate = 0;
-    float nextfire = 0;
-    // untuk mengatur kecepatan saat Player bergerak
-    [SerializeField] private float speed;
-    // untuk komponen Rigidbody2D
+    [Header("Vũ khí & Bắn")]
+    public GameObject Sword;              // Prefab thanh kiếm (đạn)
+    public GameObject pos_sword;          // Vị trí spawn kiếm
+    
+    // Các biến thành phần (Private Components)
     private Rigidbody2D rigidBody;
-    // Untuk menyimpan nilai yang mengkondisikan
-    //Player saat bergerak ke kanan atau ke kiri
-    private float moveInput;
-    // Untuk mengkondisikan benar saat Player menghadap ke kanan
-    private bool facingRight;
-
-    // memberikan nilai seberapa tinggi Player dapat melompat
-    [SerializeField] private float jumpForce;
-    // menandakan benar jika Player menyentuh pinjakan atau ground
-    [SerializeField] private bool isGrounded;
-    // memastikan bahwa posisi kaki Player berada di bawah,
-    //seperti telapak kaki gitu loh sobat
-    [SerializeField] private Transform feetPos;
-    // ini digunakan untuk mengatur seberapa besar radius kaki Player sobat
-    //"Kurang lebih seperti itu :)"
-    [SerializeField] private float circleRadius;
-    // Ini digunakan untuk memastikan object
-    //yang bertindak / kita jadikan sebagai ground
-    [SerializeField] private LayerMask whatIsGround;
-
-    //variabel ini kita panggil
-    //untuk menjalankan animasi idle, run, dan jump
     private Animator anim;
+    
+    // Biến trạng thái (State Variables)
+    private float moveInput;
+    private bool isGrounded;
+    private bool facingRight = true;
+    private float nextFireTime = 0f;
 
     private void Start()
     {
-        //inisialisasi komponen Rigidbody2D yang ada pada Player
+        // Khởi tạo các thành phần
         rigidBody = GetComponent<Rigidbody2D>();
-        //kita set di awal BENAR karena Player menghadap ke kanan
-        facingRight = true;
-        //Inisialisasi komponen Animator yang ada pada Player
         anim = GetComponent<Animator>();
     }
 
-
     private void Update()
     {
-        //Dengan memanggil class Physics2D dan fungsi OverlapCircle
-        //yang memiliki 3 parameter ini menandakan bahwa
-        //isGrounded akan bernilai benar jika ketiga parameter tersebut terpenuhi
+        // 1. Kiểm tra xem Player có đang chạm đất không
         isGrounded = Physics2D.OverlapCircle(feetPos.position, circleRadius, whatIsGround);
+        Debug.Log("Đang chạm đất: " + isGrounded);
 
-        //Fungsi untuk Player saat melompat
-        CharacterJump();
+        // 2. Nhận input di chuyển ngang (dùng AxisRaw để phản hồi phím nhanh hơn)
+        moveInput = Input.GetAxisRaw("Horizontal");
 
-        if(fireRate == 0)
+        // 3. Xử lý Nhảy (Dùng phím Mũi Tên Lên hoặc W)
+        if (isGrounded && (Input.GetKeyDown(KeyCode.UpArrow) || Input.GetKeyDown(KeyCode.W)))
         {
-
-          if(Input.GetKeyDown(KeyCode.Space))
-          {
-            Shooting();
-          }
-          else
-          {
-            if(Input.GetKeyDown(KeyCode.Space) && Time.time > nextfire)
-            {
-              nextfire = Time.time + nextfire;
-              Shooting();
-            }
-          }
-        }
-        Vector2 screenPosition = Camera.main.WorldToScreenPoint(transform.position);
-		if (screenPosition.y > Screen.height || screenPosition.y < 0){
-            died();
+            Jump();
         }
 
-    }
+        // 4. Xử lý Bắn (Phím Space và có thời gian chờ giữa 2 lần bắn)
+        if (Input.GetKeyDown(KeyCode.Space) && Time.time >= nextFireTime)
+        {
+            Shoot();
+        }
 
-    void OnCollisionEnter2D(Collision2D coll)
-    {
-      if(coll.gameObject.tag == "Batas_Mati")
-      {
-        died();
-      }
-    }
+        // 5. Kiểm tra nếu Player rớt khỏi màn hình (chết)
+        CheckFallOff();
 
-    void Die(){
-        Debug.Log("Game Over");
-		SceneManager.LoadScene("Menu");
+        // 6. Cập nhật Animation trạng thái (Chạy/Nghỉ)
+        UpdateAnimations();
     }
-
-    void died()
-    {
-      SceneManager.LoadScene("GameOver");
-    }
-
 
     private void FixedUpdate()
     {
-        // Fungsi yang memanage inputan
-        //saat Player bergerak ke Kanan atau ke Kiri
-        CharacterMovement();
-        // Fungsi yang mengatur
-        //transisi animasi Player
-        //saat idle, run atau jump
-        CharacterAnimation();
-
+        // Thực hiện di chuyển vật lý trong FixedUpdate để ổn định hơn
+        ApplyMovement();
     }
-    public float Scale_karak;
-     void Shooting(){
-           if (Scale_karak == 1f){
-            GetComponent<Rigidbody2D>().linearVelocity = new Vector2(8f, GetComponent<Rigidbody2D>().linearVelocity.y);
-        }
-        else{
-            GetComponent<Rigidbody2D>().linearVelocity = new Vector2(-8f, GetComponent<Rigidbody2D>().linearVelocity.y);
-        }
-        Instantiate(Sword, pos_sword.transform.position, pos_sword.transform.rotation);
-    }
-    // void OnMousDown (){
-	// 	Instantiate(Sword, pos_sword.transform.position, pos_sword.transform.rotation);
 
-	// }
-
-    private void CharacterMovement()
+    private void ApplyMovement()
     {
-        //Input.GetAxis adalah sebuah fungsi
-        //yang telah di sediakan oleh Unity
-        //Untuk melihat keyboard inputannya sobat
-        //buka di menu edit terus pilih Project Setting dan pilih Input
-        moveInput = Input.GetAxis("Horizontal");
+        // Gán vận tốc cho Rigidbody2D để di chuyển ngang
+        rigidBody.linearVelocity = new Vector2(moveInput * speed, rigidBody.linearVelocity.y);
 
-        if (moveInput > 0 && facingRight == false)
+        // Xử lý Lật (Flip) hướng nhân vật dựa trên input
+        if (moveInput > 0 && !facingRight)
         {
-
             Flip();
         }
-        else if (moveInput < 0 && facingRight == true)
+        else if (moveInput < 0 && facingRight)
         {
-            //Fungsi yang berguna agar Player
-            //dapat menghadap ke kanan atau ke kiri
             Flip();
         }
-        // nilai pada sumbu X akan bertambah sesuai dg speed * moveInput
-        rigidBody.linearVelocity = new Vector2(speed * moveInput, rigidBody.linearVelocity.y);
     }
 
-    void CharacterJump()
+    private void Jump()
     {
-
-        if (isGrounded == true &&  Input.GetKeyDown(KeyCode.UpArrow))
-        {
-            //Cara memanggil animasi dengan
-            //parameter yang bertipe Trigger
-            anim.SetTrigger("isJump");
-            rigidBody.linearVelocity = new Vector2(rigidBody.linearVelocity.x, jumpForce);
-        }
+        // Kích hoạt animation nhảy (Trigger)
+        anim.SetTrigger("isJump");
+        
+        // Áp dụng lực nhảy lên trục Y
+        rigidBody.linearVelocity = new Vector2(rigidBody.linearVelocity.x, jumpForce);
     }
 
-    void CharacterAnimation()
+    private void Shoot()
     {
-        if (moveInput != 0 && isGrounded == true)
-        {
-            //cara memanggil animasi dengan
-            //parameter yang bertipe BOOL
-            anim.SetBool("isRun", true);
+        // Cập nhật thời điểm được phép bắn lần tiếp theo
+        nextFireTime = Time.time + fireRate;
 
+        // Tạo đối tượng kiếm tại vị trí bắn
+        if (Sword != null && pos_sword != null) {
+            Instantiate(Sword, pos_sword.transform.position, pos_sword.transform.rotation);
         }
-        else if (moveInput == 0 && isGrounded == true)
-        {
-            anim.SetBool("isRun", false);
-        }
+
+        // Hiệu ứng "đẩy ngược" nhẹ khi bắn
+        float kickback = facingRight ? 5f : -5f;
+        rigidBody.linearVelocity = new Vector2(kickback, rigidBody.linearVelocity.y);
     }
 
     private void Flip()
     {
-        //facingRight bernilai tidak sama dengan facingRight
+        // Đảo trạng thái hướng mặt
         facingRight = !facingRight;
-        //membuat variabel dengan tipe Vector3
-        //yang isinya = transform.localScale
-        //(Scling pada sumbu x=1, y=1,z=1)
-        Vector3 scaler = transform.localScale;
-        //lalu pada sumbu x di kalikan
-        //dengan minus sehingga sumbu x
-        //nantinya akan memiliki nilai minus
-        scaler.x *= -1;
-        //dan terakhir sumbu x pada Player di berikan
-        //nilai minus sehingga ketika Player menghadap
-        //ke kiri sumbu x pada Player akan bernilai -1
-        transform.localScale = scaler;
 
-        //NOTE : Sumbu x ini sumbu x yang ada
-        //pada Scale yang ada pada komponen Transform
+        // Lật nhân vật bằng cách đảo dấu trục Scale X
+        Vector3 scaler = transform.localScale;
+        scaler.x *= -1;
+        transform.localScale = scaler;
+    }
+
+    private void UpdateAnimations()
+    {
+        // Chạy animation "Run" nếu có nhấn nút di chuyển trái/phải và đang trên đất
+        bool isRunning = Mathf.Abs(moveInput) > 0.1f && isGrounded;
+        anim.SetBool("isRun", isRunning);
+    }
+
+    private void CheckFallOff()
+    {
+        // Kiểm tra vị trí Y trên màn hình, nếu xuống dưới đáy màn hình thì chết
+        Vector2 screenPos = Camera.main.WorldToScreenPoint(transform.position);
+        if (screenPos.y < 0)
+        {
+            Died();
+        }
+    }
+
+    private void OnCollisionEnter2D(Collision2D coll)
+    {
+        // Va chạm với vùng chết (Batas_Mati)
+        if (coll.gameObject.CompareTag("Batas_Mati"))
+        {
+            Died();
+        }
+    }
+
+    public void Died()
+    {
+        // Chuyển sang Scene GameOver
+        SceneManager.LoadScene("GameOver");
     }
 }
