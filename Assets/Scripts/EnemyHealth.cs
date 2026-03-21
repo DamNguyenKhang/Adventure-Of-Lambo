@@ -98,7 +98,8 @@ public class EnemyHealth : MonoBehaviour
         // 4. Rơi vật phẩm (Nếu có)
         if (drops && thedrop != null)
         {
-            Instantiate(thedrop, transform.position, transform.rotation);
+            Vector3 spawnPos = new Vector3(transform.position.x, transform.position.y + 1.5f, transform.position.z);
+            Instantiate(thedrop, spawnPos, transform.rotation);
         }
 
         // 5. Xóa Boss sau một khoảng thời gian
