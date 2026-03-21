@@ -1,47 +1,59 @@
-﻿using System.Collections;
-using System.Collections.Generic;
-using UnityEngine;
+﻿using UnityEngine;
 
-public class Enemy : MonoBehaviour {
- public LayerMask enemyMask;
- public float speed = 1;
- Rigidbody2D myBody;
- Transform myTrans;
- float myWidth, myHeight;
+public class Enemy : MonoBehaviour
+{
+    [Header("Cài đặt di chuyển")]
+    public float speed = 1.5f;
+    public LayerMask enemyMask; // Phải chọn layer "Ground" hoặc layer của Tường
 
-	
-	void Start () {
-		myTrans = this.transform;
-  		myBody = this.GetComponent<Rigidbody2D>();
-		SpriteRenderer mySprite = this.GetComponent<SpriteRenderer>();
-		myWidth = mySprite.bounds.extents.x;
-		myHeight = mySprite.bounds.extents.y;
-	}
+    [Header("Cài đặt tia dò (Raycast)")]
+    public float rayLength = 0.5f;      // Độ dài tia bắn ra ngoài thân Boss
+    public float rayHeightOffset = 1.0f; // Độ cao của tia (nâng lên khỏi mặt đất)
+    public float rayForwardOffset = 0.5f; // Đẩy điểm bắt đầu ra khỏi người Boss
 
-	// Update is called once per frame
-	void FixedUpdate () {
+    Rigidbody2D myBody;
+    int currentDir = 1;
+    float myWidth;
 
-		Vector2 lineCastPos = myTrans.position.toVector2() - myTrans.right.toVector2() * myWidth + Vector2.up * myHeight;
-		Debug.DrawLine(lineCastPos, lineCastPos + Vector2.down);
-  		bool isGrounded = Physics2D.Linecast(lineCastPos, lineCastPos + Vector2.down, enemyMask);
+    void Start()
+    {
+        myBody = GetComponent<Rigidbody2D>();
+        // Lấy chiều rộng từ Collider để tia luôn xuất phát từ mép ngoài
+        myWidth = GetComponent<Collider2D>().bounds.extents.x;
+    }
 
-		Debug.DrawLine(lineCastPos, lineCastPos - myTrans.right.toVector2() * .05f);
-  		bool isBlocked = Physics2D.Linecast(lineCastPos, lineCastPos - myTrans.right.toVector2() * .05f, enemyMask);
+    void FixedUpdate()
+    {
+        // 1. Tính toán điểm xuất phát của tia:
+        // Phải nâng lên (Y) và đẩy ra trước (X) để không bị chính Boss chặn lại
+        Vector2 startPos = new Vector2(
+            transform.position.x + (currentDir * (myWidth + rayForwardOffset)),
+            transform.position.y + rayHeightOffset
+        );
 
-      //ketika menabrak layer isBlocked dan isGrounded maka akan berbalik arah
-		if(isBlocked||isGrounded){
-			Vector3 currRot = myTrans.eulerAngles;
-			currRot.y += 180;
-			myTrans.eulerAngles =currRot;
-		}
-		//Always Move Forward
-		  Vector2 myVel = myBody.linearVelocity;
-			myVel.x = -myTrans.right.x * speed;
-			myBody.linearVelocity = myVel;
-	}
-	void OnTriggerEnter2D(Collider2D coll){
-		if(coll.gameObject.name=="fireball"){
-			Destroy(gameObject);
-		}
-	}
+        // 2. Bắn tia kiểm tra tường
+        RaycastHit2D hit = Physics2D.Raycast(startPos, Vector2.right * currentDir, rayLength, enemyMask);
+
+        // 3. VẼ TIA ĐỂ KIỂM TRA (Rất quan trọng - Xem trong Scene tab)
+        Debug.DrawRay(startPos, Vector2.right * currentDir * rayLength, Color.red);
+
+        // 4. Nếu tia đỏ chạm vào vật cản thuộc Layer trong Enemy Mask
+        if (hit.collider != null)
+        {
+            Debug.Log("Chạm tường: " + hit.collider.name);
+            Flip();
+        }
+
+        // Luôn tiến về phía trước
+        myBody.linearVelocity = new Vector2(currentDir * speed, myBody.linearVelocity.y);
+    }
+
+    void Flip()
+    {
+        currentDir *= -1;
+        // Lật scale để toàn bộ hướng nhìn và hướng bắn tia xoay theo
+        Vector3 newScale = transform.localScale;
+        newScale.x *= -1;
+        transform.localScale = newScale;
+    }
 }

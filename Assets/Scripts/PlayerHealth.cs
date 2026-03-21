@@ -4,71 +4,120 @@ using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.SceneManagement;
 
-public class PlayerHealth : MonoBehaviour {
-	public float fullHealth;
-	//public GameObject deathFX;
-	float currentHealth;
-	public AudioClip playerHurt;
-	AudioSource playerAS;
-	// public GameObject gameOverScreen;
-    // public GameManager theGameManager;
+public class PlayerHealth : MonoBehaviour
+{
+    [Header("Thông số sức khỏe")]
+    public float fullHealth;
+    float currentHealth;
 
-	PlayerController playerControl;
+    [Header("Âm thanh & Hiệu ứng")]
+    public AudioClip playerHurt;
+    AudioSource playerAS;
 
-	//Player Heart Bar
-	public Slider heartBar;
-	public Image damageScreen;
-	bool damaged = false;
-	Color damagedColour = new Color(5f,5f,0f,0.5f);
-	float smoothColour = 5f;
+    [Header("Giao diện (UI)")]
+    public Slider heartBar;
+    public Image damageScreen;
+    public Color damagedColour = new Color(1f, 0f, 0f, 0.5f); // Màu đỏ nhạt khi dính đòn
+    public float smoothColour = 5f;
 
-	// Use this for initialization
-	void Start () {
-		currentHealth = fullHealth;
-		playerControl = GetComponent<PlayerController>();
+    [Header("Cấu hình bất tử tạm thời")]
+    public float invincibilityDuration = 1f; // 1 giây bất tử sau khi trúng đòn
+    bool isInvincible = false;
+    bool damaged = false;
 
-		//Heart Bar
-		heartBar.maxValue=fullHealth;
-		heartBar.value=fullHealth;
+    // Các thành phần tham chiếu
+    PlayerController playerControl;
+    Animator myAnim;
+    SpriteRenderer mySR;
 
-		playerAS =GetComponent<AudioSource>();
+    void Start()
+    {
+        currentHealth = fullHealth;
+        playerControl = GetComponent<PlayerController>();
+        myAnim = GetComponent<Animator>();
+        mySR = GetComponent<SpriteRenderer>();
+        playerAS = GetComponent<AudioSource>();
 
-		damaged = false;
-	}
+        // Khởi tạo thanh máu
+        if (heartBar != null)
+        {
+            heartBar.maxValue = fullHealth;
+            heartBar.value = fullHealth;
+        }
 
-	// Update is called once per frame
-	void Update () {
-		if(damaged){
-			damageScreen.color = damagedColour;
-		}else{
-			damageScreen.color = Color.Lerp(damageScreen.color, Color.clear,smoothColour*Time.deltaTime);
-		}
-		damaged = false;
+        damaged = false;
+    }
 
-	}
+    void Update()
+    {
+        // Hiệu ứng nhấp nháy màn hình đỏ khi dính đòn
+        if (damaged)
+        {
+            damageScreen.color = damagedColour;
+        }
+        else if (damageScreen != null)
+        {
+            damageScreen.color = Color.Lerp(damageScreen.color, Color.clear, smoothColour * Time.deltaTime);
+        }
+        damaged = false;
+    }
 
-	public void addDamage(float damage){
-		if(damage<=0) return;
-		currentHealth = currentHealth - damage;
-		//playerAS.clip =  playerHurt;
-		//playerAS.Play(1);
-		playerAS.PlayOneShot(playerHurt);
-		heartBar.value = currentHealth;
-		damaged = true;
+    public void addDamage(float damage)
+    {
+        // Nếu đang trong thời gian bất tử thì không nhận thêm sát thương
+        if (isInvincible || damage <= 0) return;
 
-		if(currentHealth<=0){
-			makeDead();
-		}
-	}
-	public void addHealth(float health){
-		currentHealth += health;
-		if(currentHealth>fullHealth) currentHealth=fullHealth;
-		heartBar.value =currentHealth;
-	}
-	public void makeDead(){
-		//Instantiate(deathFX, transform.position, transform.rotation);
+        currentHealth -= damage;
 
-		//SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
-		SceneManager.LoadScene("GameOver");
-	}
+        // Cập nhật UI và Âm thanh
+        if (heartBar != null) heartBar.value = currentHealth;
+        if (playerHurt != null && playerAS != null) playerAS.PlayOneShot(playerHurt);
+
+        damaged = true;
+
+        // Kích hoạt Animation "Hurt"
+        if (myAnim != null)
+        {
+            myAnim.SetTrigger("Hurt");
+        }
+
+        // Bắt đầu thời gian bất tử
+        StartCoroutine(HandleInvincibility());
+
+        if (currentHealth <= 0)
+        {
+            makeDead();
+        }
+    }
+
+    // Coroutine xử lý thời gian bất tử và hiệu ứng nhấp nháy Sprite
+    IEnumerator HandleInvincibility()
+    {
+        isInvincible = true;
+
+        // Hiệu ứng nhấp nháy nhân vật (mờ dần rồi hiện lại)
+        float elapsed = 0;
+        while (elapsed < invincibilityDuration)
+        {
+            if (mySR != null) mySR.enabled = !mySR.enabled; // Tắt/Bật sprite liên tục
+            yield return new WaitForSeconds(0.1f);
+            elapsed += 0.1f;
+        }
+
+        if (mySR != null) mySR.enabled = true; // Đảm bảo hiện lại sprite sau khi hết bất tử
+        isInvincible = false;
+    }
+
+    public void addHealth(float health)
+    {
+        currentHealth += health;
+        if (currentHealth > fullHealth) currentHealth = fullHealth;
+        if (heartBar != null) heartBar.value = currentHealth;
+    }
+
+    public void makeDead()
+    {
+        // Chuyển sang scene GameOver
+        SceneManager.LoadScene("GameOver");
+    }
 }
