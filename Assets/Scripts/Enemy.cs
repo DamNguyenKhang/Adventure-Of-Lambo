@@ -1,59 +1,79 @@
 ﻿using UnityEngine;
+using System.Collections;
 
 public class Enemy : MonoBehaviour
 {
     [Header("Cài đặt di chuyển")]
     public float speed = 1.5f;
-    public LayerMask enemyMask; // Phải chọn layer "Ground" hoặc layer của Tường
+    public LayerMask enemyMask;
+
+    [Header("Cài đặt hướng gốc")]
+    public bool spriteFacesLeftByDefault = false;
 
     [Header("Cài đặt tia dò (Raycast)")]
-    public float rayLength = 0.5f;      // Độ dài tia bắn ra ngoài thân Boss
-    public float rayHeightOffset = 1.0f; // Độ cao của tia (nâng lên khỏi mặt đất)
-    public float rayForwardOffset = 0.5f; // Đẩy điểm bắt đầu ra khỏi người Boss
+    public float rayLength = 0.5f;
+    public float rayHeightOffset = 1.0f;
+    public float rayForwardOffset = 0.5f;
 
     Rigidbody2D myBody;
     int currentDir = 1;
     float myWidth;
+    private bool isKnockedBack = false; // Trạng thái bị đẩy lùi
 
     void Start()
     {
         myBody = GetComponent<Rigidbody2D>();
-        // Lấy chiều rộng từ Collider để tia luôn xuất phát từ mép ngoài
         myWidth = GetComponent<Collider2D>().bounds.extents.x;
+        if (spriteFacesLeftByDefault) currentDir = -1;
     }
 
     void FixedUpdate()
     {
-        // 1. Tính toán điểm xuất phát của tia:
-        // Phải nâng lên (Y) và đẩy ra trước (X) để không bị chính Boss chặn lại
+        // Nếu đang bị đẩy lùi thì không tự di chuyển
+        if (isKnockedBack) return;
+
         Vector2 startPos = new Vector2(
             transform.position.x + (currentDir * (myWidth + rayForwardOffset)),
             transform.position.y + rayHeightOffset
         );
 
-        // 2. Bắn tia kiểm tra tường
         RaycastHit2D hit = Physics2D.Raycast(startPos, Vector2.right * currentDir, rayLength, enemyMask);
-
-        // 3. VẼ TIA ĐỂ KIỂM TRA (Rất quan trọng - Xem trong Scene tab)
         Debug.DrawRay(startPos, Vector2.right * currentDir * rayLength, Color.red);
 
-        // 4. Nếu tia đỏ chạm vào vật cản thuộc Layer trong Enemy Mask
         if (hit.collider != null)
         {
-            Debug.Log("Chạm tường: " + hit.collider.name);
             Flip();
         }
 
-        // Luôn tiến về phía trước
         myBody.linearVelocity = new Vector2(currentDir * speed, myBody.linearVelocity.y);
+    }
+
+    public void GetKnockback(Vector2 direction, float force)
+    {
+        if (!isKnockedBack)
+        {
+            StartCoroutine(KnockbackRoutine(direction, force));
+        }
+    }
+
+    IEnumerator KnockbackRoutine(Vector2 direction, float force)
+    {
+        isKnockedBack = true;
+        // Đẩy quái: hướng lùi ra sau và hơi bay lên một chút (y=0.5f)
+        Vector2 forceVector = new Vector2(direction.x, 0.5f) * force;
+        myBody.linearVelocity = Vector2.zero; // Reset vận tốc cũ
+        myBody.AddForce(forceVector, ForceMode2D.Impulse);
+
+        yield return new WaitForSeconds(0.4f); // Thời gian khựng
+        isKnockedBack = false;
     }
 
     void Flip()
     {
         currentDir *= -1;
-        // Lật scale để toàn bộ hướng nhìn và hướng bắn tia xoay theo
         Vector3 newScale = transform.localScale;
-        newScale.x *= -1;
+        float faceDirection = spriteFacesLeftByDefault ? -1 : 1;
+        newScale.x = Mathf.Abs(newScale.x) * currentDir * faceDirection;
         transform.localScale = newScale;
     }
 }

@@ -175,6 +175,8 @@ MonoBehaviour:
   speed: 15
   damagesenjata: 50
   lifeTime: 5
+  isBigSkill: 0
+  knockbackForce: 15
   explosionPrefab: {fileID: 6793145402247436151, guid: c969bada1b61a2c4da8c08fcae788dd1,
     type: 3}
 --- !u!82 &82268476050076340
